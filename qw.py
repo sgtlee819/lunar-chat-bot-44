@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 from datetime import datetime
 
-# OpenAI API Key 가져오기 (Streamlit Secrets 사용)
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# OpenAI 클라이언트 초기화 (Secrets에서 API 키 가져오기)
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 TODAY = datetime.now()
 
@@ -34,19 +34,13 @@ SYSTEM_PROMPT = """
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "assistant",
-            "content": "안녕! 나는 달박사 루나야! 🌙\n\n친구야, 나와 함께 달을 탐험해볼까?"
-        },
+        {"role": "assistant", "content": "안녕! 나는 달박사 루나야! 🌙\n\n친구야, 나와 함께 달을 탐험해볼까?"},
     ]
-
-if "new_question" not in st.session_state:
-    st.session_state.new_question = False
 
 if "student_name" not in st.session_state:
     st.session_state.student_name = ""
 
-# 사이드바: 학생 정보 입력
+# 사이드바: 학생 정보
 with st.sidebar:
     st.header("👨‍🎓 학생 정보")
     name_input = st.text_input("이름을 입력하세요", value=st.session_state.student_name)
@@ -62,36 +56,27 @@ with st.sidebar:
     st.markdown("---")
     st.header("📚 학습 도구")
 
-def add_user_message(content):
-    st.session_state.messages.append({"role": "user", "content": content})
-    st.session_state.new_question = True
-
 # 사용자 입력 처리
 if prompt := st.chat_input("달에 대해 궁금한 것을 물어보세요!"):
-    add_user_message(prompt)
-    st.rerun()
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-# 빠른 질문 버튼
-button_questions = {
-    "🌙 오늘의 달": "오늘 달은 어떤 모양이야? 언제 볼 수 있을까?",
-    "📖 달 이야기": "달에 관한 재미있는 이야기나 전설을 들려줘",
-    "🔍 관찰 방법": "달을 관찰할 때 무엇을 보고 어떻게 관찰해야 해?",
-    "❓ 달 퀴즈": "달에 관한 재미있는 퀴즈를 내줘",
-    "🌗 달 모양 변화": "달의 모양이 왜 바뀌는지 설명해줘",
-    "🏔️ 달 표면": "달의 표면에는 뭐가 있어? 달의 바다에 대해 알려줘",
-    "🗓️ 음력 달력": "음력과 달의 모양은 어떤 관계가 있어?",
-    "🔒 안전 수칙": "밤에 달 관찰할 때 주의해야 할 점을 알려줘"
-}
+    with st.chat_message("assistant", avatar="🌙"):
+        with st.spinner("달박사 루나가 생각 중... 🤔"):
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=st.session_state.messages,
+                    max_tokens=300,
+                    temperature=0.7,
+                )
+                ai_response = response.choices[0].message.content
+                st.write(ai_response)
+                st.session_state.messages.append({"role": "assistant", "content": ai_response})
+            except Exception as e:
+                st.error("미안해! 지금 답변하기 힘들어. 다시 시도해줄래?")
+                st.error(f"Error: {e}")
 
-st.markdown("---")
-st.subheader("🚀 빠른 질문")
-cols = st.columns(4)
-for i, (label, question) in enumerate(button_questions.items()):
-    if cols[i % 4].button(label, use_container_width=True):
-        add_user_message(question)
-        st.rerun()
-
-# 대화 출력
+# 이전 대화 출력
 for msg in st.session_state.messages:
     if msg["role"] == "system":
         continue
@@ -102,65 +87,11 @@ for msg in st.session_state.messages:
         with st.chat_message("user", avatar="👨‍🎓"):
             st.write(msg["content"])
 
-# AI 응답 생성
-if st.session_state.new_question:
-    with st.chat_message("assistant", avatar="🌙"):
-        with st.spinner("달박사 루나가 생각 중... 🤔"):
-            try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=st.session_state.messages,
-                    max_tokens=300,
-                    temperature=0.7,
-                )
-                ai_response = response.choices[0].message["content"]
-                st.write(ai_response)
-                st.session_state.messages.append({"role": "assistant", "content": ai_response})
-            except Exception as e:
-                st.error("미안해! 지금 조금 바빠서 답변하기 어려워. 다시 물어봐줄래? 🙏")
-                st.error(f"Error: {e}")
-    st.session_state.new_question = False
-
-# 대화 초기화 및 저장
+# 대화 초기화
 st.markdown("---")
-col_reset, col_download = st.columns([1, 1])
-
-with col_reset:
-    if st.button("🔄 새로운 대화 시작", type="secondary", use_container_width=True):
-        st.session_state.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "assistant",
-                "content": "안녕! 다시 만나서 반가워! 🌙\n\n새로운 달 탐험을 시작해볼까? 오늘은 어떤 달 이야기가 궁금해?",
-            },
-        ]
-        st.session_state.new_question = False
-        st.experimental_rerun()
-
-with col_download:
-    if len(st.session_state.messages) > 2:
-        conversation_text = f"🌙 {st.session_state.student_name}의 달박사 루나와의 대화\n"
-        conversation_text += f"날짜: {TODAY.strftime('%Y년 %m월 %d일')}\n\n"
-        for msg in st.session_state.messages:
-            if msg["role"] == "assistant":
-                conversation_text += f"🌙 달박사 루나: {msg['content']}\n\n"
-            elif msg["role"] == "user":
-                conversation_text += f"👨‍🎓 {st.session_state.student_name}: {msg['content']}\n\n"
-        st.download_button(
-            label="💾 대화 저장하기",
-            data=conversation_text,
-            file_name=f"달탐구_대화_{st.session_state.student_name}_{TODAY.strftime('%Y%m%d')}.txt",
-            mime="text/plain",
-            use_container_width=True,
-        )
-
-# 푸터
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; color: #666; font-size: 12px;'>
-    🌙 달박사 루나와 함께하는 즐거운 달 탐구 | 4학년 2학기 과학 '밤하늘 관찰' 🌙
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+if st.button("🔄 새로운 대화 시작", type="secondary", use_container_width=True):
+    st.session_state.messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "assistant", "content": "안녕! 다시 만나서 반가워! 🌙\n\n새로운 달 탐험을 시작해볼까? 오늘은 어떤 달 이야기가 궁금해?"},
+    ]
+    st.experimental_rerun()
