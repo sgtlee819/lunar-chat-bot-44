@@ -1,11 +1,11 @@
 import streamlit as st
-import os
 from datetime import datetime
 from openai import OpenAI
 
-# OpenAI API Key 환경 변수에서 가져오기
-api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI API Key 가져오기 (Streamlit Secrets에서)
+api_key = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
+
 
 TODAY = datetime.now()
 
