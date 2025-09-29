@@ -1,11 +1,9 @@
 import streamlit as st
+import openai
 from datetime import datetime
-from openai import OpenAI
 
-# OpenAI API Key 가져오기 (Streamlit Secrets에서)
-api_key = st.secrets["OPENAI_API_KEY"]
-client = OpenAI(api_key=api_key)
-
+# OpenAI API Key 가져오기 (Streamlit Secrets 사용)
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 TODAY = datetime.now()
 
@@ -109,13 +107,13 @@ if st.session_state.new_question:
     with st.chat_message("assistant", avatar="🌙"):
         with st.spinner("달박사 루나가 생각 중... 🤔"):
             try:
-                response = client.chat.completions.create(
+                response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=st.session_state.messages,
                     max_tokens=300,
                     temperature=0.7,
                 )
-                ai_response = response.choices[0].message.content
+                ai_response = response.choices[0].message["content"]
                 st.write(ai_response)
                 st.session_state.messages.append({"role": "assistant", "content": ai_response})
             except Exception as e:
