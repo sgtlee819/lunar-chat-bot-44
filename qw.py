@@ -2,11 +2,11 @@ import streamlit as st
 from openai import OpenAI
 from datetime import datetime
 
-# OpenAI 클라이언트 (최신 SDK 방식)
+# OpenAI 클라이언트
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 TODAY = datetime.now()
-MODEL_NAME = "gpt-4o-mini"   # Streamlit Cloud에서 가볍게 쓰기 좋은 모델
+MODEL_NAME = "gpt-4o-mini"
 
 # 페이지 설정
 st.set_page_config(
@@ -15,23 +15,18 @@ st.set_page_config(
     layout="wide",
 )
 
-# 기본 프롬프트
+# 기본 시스템 프롬프트
 BASE_SYSTEM_PROMPT = """
 너는 '달박사 루나'라는 친근한 달 전문가야.
 대상은 초등학교 4학년 학생들이야.
 
 [규칙]
 - 말투는 반말, 짧고 친근하게 대답해.
-- 답변은 2~3문장 이내, 50단어 이하로 해.
+- 답변은 반드시 2~3문장, 80단어 이하.
+- 절대 4문장 이상 말하지 마.
 - 어려운 말 대신 쉬운 말 사용.
 - 퀴즈는 OX나 3지선다만, 교과 수준으로.
 - 사실과 다르면 절대 말하지 말고 "잘 모르겠어"라고 해.
-
-[역할]
-1. 달 모양과 위상(초승달, 상현달, 보름달, 하현달, 그믐달) 설명
-2. 달 관찰 방법 안내
-3. 재미있는 달 관련 이야기나 퀴즈 제공
-4. 학생에게 격려와 칭찬하기
 """
 
 # 세션 상태
@@ -46,7 +41,7 @@ with st.sidebar:
     name_input = st.text_input("이름을 입력하세요", value=st.session_state.student_name)
     if name_input != st.session_state.student_name:
         st.session_state.student_name = name_input
-        # 이름이 바뀌면 system prompt 업데이트
+        # 이름이 바뀌면 시스템 프롬프트 업데이트
         system_prompt = BASE_SYSTEM_PROMPT + f"\n\n[학생 이름]\n대화 중 학생의 이름은 '{st.session_state.student_name}'입니다. 답변할 때 가끔 이름을 불러주세요."
         st.session_state.messages = [
             {"role": "system", "content": system_prompt},
@@ -67,8 +62,8 @@ def send_and_respond(user_text: str):
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=st.session_state.messages,
-            max_tokens=120,
-            temperature=0.3,
+            max_tokens=300,   # ✅ 끊김 방지 위해 넉넉히
+            temperature=0.3,  # ✅ 짧고 정확한 답변 유도
         )
     ai_text = response.choices[0].message.content
     st.session_state.messages.append({"role": "assistant", "content": ai_text})
@@ -77,7 +72,7 @@ def send_and_respond(user_text: str):
 if prompt := st.chat_input("달에 대해 궁금한 것을 물어보세요!"):
     send_and_respond(prompt)
 
-# 빠른 질문 버튼 (태블릿 대응: 2열, PC는 4열)
+# 빠른 질문 버튼
 button_questions = {
     "🌙 오늘의 달": "오늘 달은 어떤 모양이야? 언제 볼 수 있을까?",
     "📖 달 이야기": "달에 관한 재미있는 이야기나 전설을 들려줘",
@@ -91,16 +86,12 @@ button_questions = {
     "🔭 낮에도 보이는 달": "달은 밤에만 보여? 낮에도 볼 수 있어?",
     "🌍 달과 지구의 차이": "달에는 왜 공기가 없을까? 지구랑 뭐가 달라?",
     "✍️ 관찰 일기 쓰는 법": "달 관찰 일지는 어떻게 써야 잘 쓰는 거야?",
+    "🛡️ 안전 수칙 업그레이드": "밤에 달을 볼 때 주의할 점 3가지를 알려줘"
 }
 
-st.markdown("---")
-st.subheader("🚀 빠른 질문")
-
-# 태블릿 화면에서는 2열, PC 화면에서는 4열
-cols = st.columns(2 if st.session_state.get("is_tablet", False) else 4)
-
+cols = st.columns(4)
 for i, (label, q) in enumerate(button_questions.items()):
-    if cols[i % len(cols)].button(label, use_container_width=True):
+    if cols[i % 4].button(label, use_container_width=True):
         send_and_respond(q)
 
 # 대화 출력
@@ -111,14 +102,3 @@ for msg in st.session_state.messages:
     avatar = "🌙" if who == "assistant" else "👨‍🎓"
     with st.chat_message(who, avatar=avatar):
         st.write(msg["content"])
-
-# CSS 커스터마이징 (모바일/태블릿 버튼 크기 확대)
-st.markdown(
-    """
-    <style>
-    .stButton button { font-size:18px; padding:10px; }
-    .stChatMessage { font-size:16px; line-height:1.5; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
